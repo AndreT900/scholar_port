@@ -189,6 +189,16 @@ li {
   background-color: #45a049;
 }
 
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-style: italic;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border: 1px dashed #ddd;
+}
+
 
 /* Tablet (max 768px) */
 @media (max-width: 768px) {

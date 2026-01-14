@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 
 // Schema del database per gli articoli
+// Le citazioni sono ora gestite come entità separate nel modello Citation
 const ArticleSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -28,8 +29,6 @@ const ArticleSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-
-    citations: [String],
     createdAt: {
         type: Date,
         default: Date.now

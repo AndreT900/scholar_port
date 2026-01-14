@@ -1,0 +1,223 @@
+.citation-manager {
+    margin-top: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background: #fafafa;
+}
+
+.citation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.citation-header h4 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.add-citation-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.add-citation-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.citation-form {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+}
+
+.citation-form h5 {
+    margin: 0 0 15px;
+    color: #2c3e50;
+}
+
+.form-row {
+    margin-bottom: 12px;
+}
+
+.form-row input,
+.form-row textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-row input:focus,
+.form-row textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.form-row.two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 15px;
+}
+
+.form-actions .cancel-btn {
+    background: #f0f0f0;
+    color: #666;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.form-actions .cancel-btn:hover {
+    background: #e0e0e0;
+}
+
+.form-actions .save-btn {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.form-actions .save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
+.citation-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.citation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.citation-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.citation-content {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.citation-year {
+    color: #666;
+    margin-left: 5px;
+}
+
+.citation-doi {
+    color: #007bff;
+    font-size: 13px;
+}
+
+.citation-doi a {
+    color: inherit;
+}
+
+.citation-notes {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: #666;
+    font-style: italic;
+}
+
+.citation-actions {
+    display: flex;
+    gap: 5px;
+    margin-left: 10px;
+}
+
+.citation-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    font-size: 16px;
+    opacity: 0.6;
+    transition: all 0.3s ease;
+}
+
+.citation-actions button:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.citation-actions .delete-btn:hover {
+    color: #ff4d4d;
+}
+
+.no-citations {
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    margin: 10px 0;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .citation-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .add-citation-btn {
+        text-align: center;
+    }
+
+    .form-row.two-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .citation-item {
+        flex-direction: column;
+    }
+
+    .citation-actions {
+        margin-left: 0;
+        margin-top: 10px;
+        justify-content: flex-end;
+    }
+}

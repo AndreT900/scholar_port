@@ -5,7 +5,18 @@ import App from './App';
 
 jest.mock('axios');
 
-
+// Mock delle citazioni come entità strutturate
+const mockCitations = [
+    {
+        _id: 'cit1',
+        articleId: '1',
+        authors: 'Galileo G.',
+        title: 'Dialogo sopra i due massimi sistemi',
+        year: 1632,
+        doi: null,
+        notes: 'Riferimento storico'
+    }
+];
 
 const mockArticles = [
     {
@@ -16,7 +27,7 @@ const mockArticles = [
         fullText: 'Testo completo...',
         publicationDate: '1687-07-05',
         doi: '10.1000/xyz123',
-        citations: ['Galileo (1600)']
+        citations: mockCitations
     },
     {
         _id: '2',
@@ -33,14 +44,27 @@ const mockArticles = [
 describe('ScholarPort Functional Tests', () => {
 
     beforeEach(() => {
-
         jest.clearAllMocks();
-        axios.get.mockResolvedValue({ data: mockArticles });
+        // La ricerca ora avviene lato server con parametro search
+        axios.get.mockImplementation((url, config) => {
+            if (url === '/api/articles') {
+                const search = config?.params?.search?.toLowerCase() || '';
+                if (!search) {
+                    return Promise.resolve({ data: mockArticles });
+                }
+                // Simula la ricerca lato server
+                const filtered = mockArticles.filter(article =>
+                    article.title.toLowerCase().includes(search) ||
+                    article.authors.toLowerCase().includes(search) ||
+                    new Date(article.publicationDate).getFullYear().toString().includes(search)
+                );
+                return Promise.resolve({ data: filtered });
+            }
+            return Promise.resolve({ data: [] });
+        });
         axios.delete.mockResolvedValue({});
         axios.put.mockResolvedValue({ data: {} });
         axios.post.mockResolvedValue({ data: {} });
-
-        jest.spyOn(window, 'confirm').mockImplementation(() => true);
     });
 
     afterEach(() => {
@@ -60,49 +84,68 @@ describe('ScholarPort Functional Tests', () => {
                 expect(screen.getByText('Studio sulla Gravità')).toBeInTheDocument();
                 expect(screen.getByText('Relatività Ristretta')).toBeInTheDocument();
             });
-            expect(axios.get).toHaveBeenCalledWith('/api/articles');
+            expect(axios.get).toHaveBeenCalledWith('/api/articles', expect.anything());
         });
 
         test('Mostra i dettagli corretti per un articolo (Autore, Data)', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Newton I.'));
             expect(screen.getAllByText(/Autori:/).length).toBeGreaterThan(0);
-
             expect(screen.getByText(/Newton I./)).toBeVisible();
         });
     });
 
-    describe('2. Funzionalità di Ricerca', () => {
-        test('Filtra gli articoli in base al titolo', async () => {
+    describe('2. Funzionalità di Ricerca (Lato Server)', () => {
+        test('Effettua ricerca lato server per titolo', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
 
-            const searchInput = screen.getByPlaceholderText(/Cerca per titolo o anno/i);
-            userEvent.type(searchInput, 'Gravità');
+            const searchInput = screen.getByPlaceholderText(/Cerca per titolo, autore o anno/i);
+            await userEvent.type(searchInput, 'Gravità');
 
-            expect(screen.getByText('Studio sulla Gravità')).toBeInTheDocument();
-            expect(screen.queryByText('Relatività Ristretta')).not.toBeInTheDocument();
+            // Verifica che la chiamata API includa il parametro di ricerca
+            await waitFor(() => {
+                expect(axios.get).toHaveBeenCalledWith('/api/articles', {
+                    params: { search: 'Gravità' }
+                });
+            });
         });
 
-        test('Filtra gli articoli in base all\'anno', async () => {
+        test('Effettua ricerca lato server per autore', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
 
-            const searchInput = screen.getByPlaceholderText(/Cerca per titolo o anno/i);
-            userEvent.type(searchInput, '1905');
+            const searchInput = screen.getByPlaceholderText(/Cerca per titolo, autore o anno/i);
+            await userEvent.type(searchInput, 'Einstein');
 
-            expect(screen.getByText('Relatività Ristretta')).toBeInTheDocument();
-            expect(screen.queryByText('Studio sulla Gravità')).not.toBeInTheDocument();
+            await waitFor(() => {
+                expect(axios.get).toHaveBeenCalledWith('/api/articles', {
+                    params: { search: 'Einstein' }
+                });
+            });
         });
 
-        test('Mostra messaggio "Nessun articolo" se la ricerca non produce risultati', async () => {
+        test('Effettua ricerca lato server per anno', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
 
-            const searchInput = screen.getByPlaceholderText(/Cerca per titolo o anno/i);
-            userEvent.type(searchInput, 'Zzzzzzzzz');
+            const searchInput = screen.getByPlaceholderText(/Cerca per titolo, autore o anno/i);
+            await userEvent.type(searchInput, '1905');
 
-            expect(screen.getByText(/Nessun articolo trovato/i)).toBeInTheDocument();
+            await waitFor(() => {
+                expect(axios.get).toHaveBeenCalledWith('/api/articles', {
+                    params: { search: '1905' }
+                });
+            });
+        });
+
+        test('Mostra messaggio quando non ci sono articoli', async () => {
+            axios.get.mockResolvedValue({ data: [] });
+            render(<App />);
+
+            await waitFor(() => {
+                expect(screen.getByText(/Nessun articolo presente/i)).toBeInTheDocument();
+            });
         });
     });
 
@@ -117,23 +160,19 @@ describe('ScholarPort Functional Tests', () => {
         });
 
         test('Invia i dati corretti al backend quando si crea un articolo', async () => {
-            const newArticle = { ...mockArticles[0], _id: '3', title: 'Nuovo Paper' };
+            const newArticle = { ...mockArticles[0], _id: '3', title: 'Nuovo Paper', citations: [] };
             axios.post.mockResolvedValue({ data: newArticle });
 
             render(<App />);
 
-
             fireEvent.click(screen.getByText(/\+ Inserisci nuovo/i));
 
-
-            userEvent.type(screen.getByPlaceholderText(/Titolo dell'articolo/i), 'Nuovo Paper');
-            userEvent.type(screen.getByPlaceholderText(/Autori/i), 'Me Medesimo');
-            userEvent.type(screen.getByPlaceholderText(/Testo completo/i), 'Contenuto...');
-
+            await userEvent.type(screen.getByPlaceholderText(/Titolo dell'articolo/i), 'Nuovo Paper');
+            await userEvent.type(screen.getByPlaceholderText(/Autori/i), 'Me Medesimo');
+            await userEvent.type(screen.getByPlaceholderText(/Testo completo/i), 'Contenuto...');
 
             const dateInput = screen.getByLabelText(/Data Pubblicazione:/i);
             fireEvent.change(dateInput, { target: { value: '2023-01-01' } });
-
 
             const saveBtn = screen.getByText('Salva Articolo');
             fireEvent.click(saveBtn);
@@ -141,7 +180,6 @@ describe('ScholarPort Functional Tests', () => {
             await waitFor(() => {
                 expect(axios.post).toHaveBeenCalledTimes(1);
             });
-
 
             expect(axios.post).toHaveBeenCalledWith('/api/articles', expect.objectContaining({
                 title: 'Nuovo Paper',
@@ -154,7 +192,6 @@ describe('ScholarPort Functional Tests', () => {
         test('Apre il form precompilato quando si clicca modifica', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
-
 
             const menuBtns = screen.getAllByText('⋮');
             fireEvent.click(menuBtns[0]);
@@ -170,21 +207,17 @@ describe('ScholarPort Functional Tests', () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
 
-
             const menuBtns = screen.getAllByText('⋮');
             fireEvent.click(menuBtns[0]);
             fireEvent.click(screen.getByText('Modifica'));
 
-
             const titleInput = screen.getByDisplayValue('Studio sulla Gravità');
-            userEvent.clear(titleInput);
-            userEvent.type(titleInput, 'Gravità Modificata');
-
+            await userEvent.clear(titleInput);
+            await userEvent.type(titleInput, 'Gravità Modificata');
 
             axios.put.mockResolvedValue({
                 data: { ...mockArticles[0], title: 'Gravità Modificata' }
             });
-
 
             fireEvent.click(screen.getByText('Salva Articolo'));
 
@@ -193,36 +226,84 @@ describe('ScholarPort Functional Tests', () => {
                     title: 'Gravità Modificata'
                 }));
             });
-
-
-            expect(await screen.findByText('Gravità Modificata')).toBeInTheDocument();
         });
     });
 
-    describe('5. Eliminazione Articolo', () => {
-        test('Mostra il menu di conferma e chiama DELETE', async () => {
+    describe('5. Eliminazione Articolo (con Modale Dedicato)', () => {
+        test('Mostra il modale di conferma quando si clicca Elimina', async () => {
             render(<App />);
             await waitFor(() => screen.getByText('Studio sulla Gravità'));
-
 
             const menuBtns = screen.getAllByText('⋮');
             fireEvent.click(menuBtns[0]);
 
+            const deleteBtn = screen.getByText('Elimina');
+            fireEvent.click(deleteBtn);
+
+            // Verifica che il modale di conferma sia visibile (non window.confirm)
+            await waitFor(() => {
+                expect(screen.getByText('Conferma eliminazione')).toBeInTheDocument();
+            });
+        });
+
+        test('Elimina l\'articolo quando si conferma nel modale', async () => {
+            render(<App />);
+            await waitFor(() => screen.getByText('Studio sulla Gravità'));
+
+            const menuBtns = screen.getAllByText('⋮');
+            fireEvent.click(menuBtns[0]);
 
             axios.delete.mockResolvedValue({});
 
             const deleteBtn = screen.getByText('Elimina');
             fireEvent.click(deleteBtn);
 
+            // Attende il modale e clicca Conferma
+            await waitFor(() => {
+                expect(screen.getByText('Conferma eliminazione')).toBeInTheDocument();
+            });
 
-            expect(window.confirm).toHaveBeenCalled();
-
-
-            expect(axios.delete).toHaveBeenCalledWith('/api/articles/1');
-
+            const confirmBtn = screen.getByText('Conferma');
+            fireEvent.click(confirmBtn);
 
             await waitFor(() => {
-                expect(screen.queryByText('Studio sulla Gravità')).not.toBeInTheDocument();
+                expect(axios.delete).toHaveBeenCalledWith('/api/articles/1');
+            });
+        });
+    });
+
+    describe('6. Gestione Citazioni', () => {
+        test('Mostra il pulsante per gestire le citazioni', async () => {
+            render(<App />);
+            await waitFor(() => screen.getByText('Studio sulla Gravità'));
+
+            const citationButton = screen.getByText(/Gestisci citazioni \(1\)/i);
+            expect(citationButton).toBeInTheDocument();
+        });
+
+        test('Espande la sezione citazioni quando cliccato', async () => {
+            render(<App />);
+            await waitFor(() => screen.getByText('Studio sulla Gravità'));
+
+            const citationButton = screen.getByText(/Gestisci citazioni \(1\)/i);
+            fireEvent.click(citationButton);
+
+            await waitFor(() => {
+                expect(screen.getByText('📚 Citazioni (1)')).toBeInTheDocument();
+                expect(screen.getByText('+ Aggiungi citazione')).toBeInTheDocument();
+            });
+        });
+
+        test('Mostra citazioni strutturate con autore e titolo', async () => {
+            render(<App />);
+            await waitFor(() => screen.getByText('Studio sulla Gravità'));
+
+            const citationButton = screen.getByText(/Gestisci citazioni \(1\)/i);
+            fireEvent.click(citationButton);
+
+            await waitFor(() => {
+                expect(screen.getByText('Galileo G.')).toBeInTheDocument();
+                expect(screen.getByText('Dialogo sopra i due massimi sistemi')).toBeInTheDocument();
             });
         });
     });

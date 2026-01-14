@@ -1,30 +1,64 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './App.css';
 import ArticleForm from './components/ArticleForm';
+import ConfirmModal from './components/ConfirmModal';
+import CitationManager from './components/CitationManager';
 
 
 function App() {
   const [articles, setArticles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [editingArticle, setEditingArticle] = useState(null);
-
   const [openMenuId, setOpenMenuId] = useState(null);
-
   const [citationVisibility, setCitationVisibility] = useState({});
+
+  // Stato per il modale di conferma/notifica
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: 'confirm',
+    title: '',
+    message: '',
+    onConfirm: null
+  });
+
+  // Funzione per mostrare modali di conferma/notifica
+  const showModal = useCallback(({ type, title, message, onConfirm }) => {
+    setConfirmModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onConfirm
+    });
+  }, []);
+
+  // Chiude il modale di conferma
+  const closeConfirmModal = () => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // Recupera la lista degli articoli dal backend (con ricerca lato server)
+  const fetchArticles = useCallback((searchQuery = '') => {
+    const params = searchQuery.trim() ? { search: searchQuery.trim() } : {};
+    axios.get('/api/articles', { params })
+      .then(response => setArticles(response.data))
+      .catch(error => console.error("Errore:", error));
+  }, []);
 
   useEffect(() => {
     fetchArticles();
-  }, []);
+  }, [fetchArticles]);
 
-  // Recupera la lista degli articoli dal backend
-  const fetchArticles = () => {
-    axios.get('/api/articles')
-      .then(response => setArticles(response.data))
-      .catch(error => console.error("Errore:", error));
-  };
+  // Gestisce la ricerca con debounce (lato server)
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchArticles(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm, fetchArticles]);
 
   // Salva un articolo (nuovo o modificato) nello stato locale
   const handleSaveArticle = (savedArticle) => {
@@ -56,15 +90,31 @@ function App() {
     setOpenMenuId(null);
   };
 
-  // Elimina un articolo dopo conferma dell'utente
-  const handleDelete = async (id) => {
-    if (!window.confirm("Sei sicuro di voler cancellare questo articolo?")) return;
-    try {
-      await axios.delete(`/api/articles/${id}`);
-      setArticles(articles.filter(article => article._id !== id));
-    } catch (error) {
-      console.error("Errore cancellazione:", error);
-    }
+  // Elimina un articolo dopo conferma dell'utente (con modale dedicato)
+  const handleDelete = (id, title) => {
+    showModal({
+      type: 'confirm',
+      title: 'Conferma eliminazione',
+      message: `Sei sicuro di voler eliminare l'articolo "${title}"? Questa azione eliminerà anche tutte le citazioni associate.`,
+      onConfirm: async () => {
+        try {
+          await axios.delete(`/api/articles/${id}`);
+          setArticles(articles.filter(article => article._id !== id));
+          showModal({
+            type: 'success',
+            title: 'Eliminato',
+            message: 'Articolo eliminato con successo!'
+          });
+        } catch (error) {
+          console.error("Errore cancellazione:", error);
+          showModal({
+            type: 'error',
+            title: 'Errore',
+            message: 'Si è verificato un errore durante l\'eliminazione.'
+          });
+        }
+      }
+    });
     setOpenMenuId(null);
   };
 
@@ -76,17 +126,14 @@ function App() {
     }));
   };
 
-  // Filtra gli articoli per titolo o anno (ricerca unificata)
-  const filteredArticles = articles.filter(article => {
-    const search = searchTerm.toLowerCase().trim();
-    if (search === "") return true;
-
-    const titleMatch = article.title.toLowerCase().includes(search);
-    const articleYear = new Date(article.publicationDate).getFullYear().toString();
-    const yearMatch = articleYear.includes(search);
-
-    return titleMatch || yearMatch;
-  });
+  // Aggiorna le citazioni di un articolo nello stato locale
+  const handleCitationsChange = (articleId, newCitations) => {
+    setArticles(articles.map(article =>
+      article._id === articleId
+        ? { ...article, citations: newCitations }
+        : article
+    ));
+  };
 
   return (
     <div className="App">
@@ -104,7 +151,7 @@ function App() {
             </button>
             <input
               type="text"
-              placeholder="Cerca per titolo o anno..."
+              placeholder="Cerca per titolo, autore o anno..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-bar"
@@ -112,11 +159,15 @@ function App() {
           </div>
         </div>
 
-        {filteredArticles.length === 0 ? (
-          <p>Nessun articolo trovato corrispondente alla ricerca.</p>
+        {articles.length === 0 ? (
+          <p className="no-results">
+            {searchTerm.trim()
+              ? "Nessun articolo trovato corrispondente alla ricerca."
+              : "Nessun articolo presente. Inizia aggiungendo una nuova pubblicazione!"}
+          </p>
         ) : (
           <ul>
-            {filteredArticles.map(article => (
+            {articles.map(article => (
               <li key={article._id} style={{ position: 'relative' }}>
 
                 <div className="menu-container">
@@ -126,7 +177,7 @@ function App() {
                   {openMenuId === article._id && (
                     <div className="menu-dropdown">
                       <button onClick={() => openEditModal(article)}>Modifica</button>
-                      <button className="delete-option" onClick={() => handleDelete(article._id)}>Elimina</button>
+                      <button className="delete-option" onClick={() => handleDelete(article._id, article.title)}>Elimina</button>
                     </div>
                   )}
                 </div>
@@ -145,31 +196,32 @@ function App() {
                 <p>📅 {new Date(article.publicationDate).toLocaleDateString()}</p>
                 {article.doi && <p>🔗 <a href={`https://doi.org/${article.doi}`} target="_blank" rel="noreferrer">{article.doi}</a></p>}
 
-                {article.citations && article.citations.length > 0 && (
-                  <div style={{ marginTop: '15px', borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
-                    <button
-                      onClick={() => toggleCitations(article._id)}
-                      style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                    >
-                      {citationVisibility[article._id] ? 'Nascondi citazioni' : `Mostra citazioni (${article.citations.length})`}
-                    </button>
+                {/* Sezione citazioni con gestione completa */}
+                <div style={{ marginTop: '15px', borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
+                  <button
+                    onClick={() => toggleCitations(article._id)}
+                    style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                  >
+                    {citationVisibility[article._id]
+                      ? 'Nascondi citazioni'
+                      : `Gestisci citazioni (${article.citations?.length || 0})`}
+                  </button>
 
-                    {citationVisibility[article._id] && (
-                      <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
-                        {article.citations.map((cit, idx) => (
-                          <li key={idx} style={{ fontSize: '0.9em', color: '#555' }}>
-                            {cit && typeof cit === 'object' ? `${cit.citedBy} (${cit.year}) - ${cit.comment}` : cit}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
+                  {citationVisibility[article._id] && (
+                    <CitationManager
+                      articleId={article._id}
+                      citations={article.citations || []}
+                      onCitationsChange={(newCitations) => handleCitationsChange(article._id, newCitations)}
+                      onShowModal={showModal}
+                    />
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
 
+        {/* Modale per inserimento/modifica articolo */}
         {isModalOpen && (
           <div className="modal-overlay" onClick={closeModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -179,10 +231,21 @@ function App() {
               <ArticleForm
                 onArticleAdded={handleSaveArticle}
                 initialData={editingArticle}
+                onShowModal={showModal}
               />
             </div>
           </div>
         )}
+
+        {/* Modale di conferma/notifica */}
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={closeConfirmModal}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type={confirmModal.type}
+        />
       </main>
     </div>
   );

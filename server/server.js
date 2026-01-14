@@ -6,6 +6,7 @@ require('dotenv').config();
 
 
 const articlesRouter = require('./routes/articles');
+const citationsRouter = require('./routes/citations');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,6 +16,7 @@ app.use(express.json());
 
 
 app.use('/api/articles', articlesRouter);
+app.use('/api/citations', citationsRouter);
 
 const uri = process.env.MONGO_URI;
 
